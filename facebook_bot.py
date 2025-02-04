@@ -1,6 +1,6 @@
 from flask import Flask, request
 import requests
-pront(9)
+print(9)
 app = Flask(__name__)
 
 # This is page access token that you get from facebook developer console.
