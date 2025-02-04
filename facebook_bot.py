@@ -6,12 +6,12 @@ app = Flask(__name__)
 # This is page access token that you get from facebook developer console.
 PAGE_ACCESS_TOKEN = 'EAAVFQ6BdqPcBO1e0ypg1Is1Vg9nqwzqdu0znV8kXmUDqofOg0q4kdIG3vKa0MBtp78QGvGYGZCgZB8hT2s4EkjCkjdzZAn8ehDzo5ZAikyZAFZCfsNgfYGnxSpQWD0jNV4ZAuezBLF7CRJZA1FYn2cWOgGFXsiXZBND0dZBYvaopEwhioYezZCMnnx4uhXjI8Tg1ZBlZBV2wLs4jpUZANqWf06rJH40dkZD'
 # This is API key for facebook messenger.
-API = "https://graph.facebook.com/v13.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
+API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
 
 # This function use for verify token with facebook webhook. So we can verify our flask app and facebook are connected.
 
 
-@app.route("/", methods=['GET'])
+@app.route("/webhook", methods=['GET'])
 def fbverify():
     if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.challenge"):
         if not request.args.get("hub.verify_token") == "cat":
