@@ -1,6 +1,6 @@
 from flask import Flask, request
 import requests
-
+pront(9)
 app = Flask(__name__)
 
 # This is page access token that you get from facebook developer console.
@@ -11,7 +11,7 @@ API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_T
 # This function use for verify token with facebook webhook. So we can verify our flask app and facebook are connected.
 
 
-@app.route("/webhook", methods=['GET'])
+@app.route("/", methods=['GET'])
 def fbverify():
     if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.challenge"):
         if not request.args.get("hub.verify_token") == "cat":
