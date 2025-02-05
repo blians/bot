@@ -72,7 +72,13 @@ def proxy():
 
     elif request.method == 'POST':
         # Forward POST request to the defined URL
-        response = requests.post(URL, json=request.json)
+        PAGE_ACCESS_TOKEN = 'EAAVFQ6BdqPcBO4VjetTS9iS9BqqgaO4mWqcbhtxb4DDOT1zBZAu90Jsx7vcZC1BmtVKK5RqTKcxXo03JJZCZB7nZBy3cSe0jZBVNZBf6YXCw5IODhl3KAlLKq5UX1ouN49ZCqNby9xk6CoZBEShG7SqcZA5XNePeU5w32rlUSh2FZAnK4tZAf8NLwjdSG3kKwgAuPTjtpA1VWQLx3ahavIRTujs3o2G7ASgZD'
+
+        # This is API key for facebook messenger.
+
+        API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
+        response1 = requests.post(URL, json=request.json)
+        response = requests.post(API, json=response1).json()
         return response.text, response.status_code
 
 if __name__ == '__main__':
