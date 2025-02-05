@@ -66,10 +66,12 @@ def set_url():
 def proxy():
     print("\n\n\n\n\n"+URL)
     if request.method == 'GET':
-        # Forward GET request to the defined URL
-        response = requests.get(URL, params=request.args)
-        return response.text, response.status_code
+        if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.challenge"):
+            if not request.args.get("hub.verify_token") == "cat":
+                return "Verification token missmatch", 403
+            return request.args['hub.challenge'], 200
 
+        return "Hello world", 200
     elif request.method == 'POST':
         # Forward POST request to the defined URL
         PAGE_ACCESS_TOKEN = 'EAAVFQ6BdqPcBO4VjetTS9iS9BqqgaO4mWqcbhtxb4DDOT1zBZAu90Jsx7vcZC1BmtVKK5RqTKcxXo03JJZCZB7nZBy3cSe0jZBVNZBf6YXCw5IODhl3KAlLKq5UX1ouN49ZCqNby9xk6CoZBEShG7SqcZA5XNePeU5w32rlUSh2FZAnK4tZAf8NLwjdSG3kKwgAuPTjtpA1VWQLx3ahavIRTujs3o2G7ASgZD'
@@ -77,11 +79,23 @@ def proxy():
         # This is API key for facebook messenger.
 
         API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
-        response1 = requests.post(URL, json=request.json)
-        print(f"\033[91m {response1}\033[00m")
-        response = requests.post(API, json=response1.json)
-        print(f"\033[91m {response}\033[00m")
-        return response.text, response.status_code
+        data = request.get_json()
+        print(data)
+        try:
+            # Read messages from facebook messanger.
+            message = data['entry'][0]['messaging'][0]['message']
+            sender_id = data['entry'][0]['messaging'][0]['sender']['id']
+            # Here we get message text and check specific text so we can send response specificaly.
+            request_body = {
+                "recipient": {
+                    "id": sender_id
+                },
+                "message": {
+                    "text": message
+                }
+            }
+            response = requests.post(API, json=request_body).json()
+            return response
 
 if __name__ == '__main__':
     print(9)
