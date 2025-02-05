@@ -96,6 +96,8 @@ def proxy():
             }
             response = requests.post(API, json=request_body).json()
             return response
+        except:
+            pass
 
 if __name__ == '__main__':
     print(9)
