@@ -1,7 +1,7 @@
 # proxy_forward.py
 
 from flask import Flask, request, render_template_string, redirect, url_for
-import requests
+import requests,os
 
 app = Flask(__name__)
 
