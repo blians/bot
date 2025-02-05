@@ -6,7 +6,7 @@ import requests,os
 app = Flask(__name__)
 
 # Define the default URLs for GET and POST forwarding
-URL = ""
+URL = "https://rnubo-103-230-107-22.a.free.pinggy.link"
 
 # Home route to show HTML form
 @app.route('/', methods=['GET'])
@@ -64,7 +64,7 @@ def set_url():
 # Proxy route for both GET and POST requests
 @app.route('/proxy', methods=['GET', 'POST'])
 def proxy():
-    print(URL)
+    print("\n\n\n\n\n"+URL)
     if request.method == 'GET':
         # Forward GET request to the defined URL
         response = requests.get(URL, params=request.args)
