@@ -64,6 +64,7 @@ def set_url():
 # Proxy route for both GET and POST requests
 @app.route('/proxy', methods=['GET', 'POST'])
 def proxy():
+    print(URL)
     if request.method == 'GET':
         # Forward GET request to the defined URL
         response = requests.get(URL, params=request.args)
