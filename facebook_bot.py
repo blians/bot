@@ -78,11 +78,12 @@ def proxy():
 
         API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
         response1 = requests.post(URL, json=request.json)
-        print(response1)
+        print(f"\033[91m {response1}\033[00m")
         response = requests.post(API, json=response1.json)
-        print(response)
+        print(f"\033[91m {response}\033[00m")
         return response.text, response.status_code
 
 if __name__ == '__main__':
+    print(9)
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=True)
     
