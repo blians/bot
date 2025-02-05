@@ -66,12 +66,12 @@ def set_url():
 def proxy():
     if request.method == 'GET':
         # Forward GET request to the defined URL
-        response = requests.get(GET_FORWARD_URL, params=request.args)
+        response = requests.get(URL, params=request.args)
         return response.text, response.status_code
 
     elif request.method == 'POST':
         # Forward POST request to the defined URL
-        response = requests.post(POST_FORWARD_URL, json=request.json)
+        response = requests.post(URL, json=request.json)
         return response.text, response.status_code
 
 if __name__ == '__main__':
