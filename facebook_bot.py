@@ -78,7 +78,7 @@ def proxy():
 
         API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
         response1 = requests.post(URL, json=request.json)
-        response = requests.post(API, json=response1).json()
+        response = requests.post(API, json=response1.json)
         return response.text, response.status_code
 
 if __name__ == '__main__':
