@@ -1,105 +1,239 @@
-# proxy_forward.py
+from flask import Flask, request, jsonify, redirect, render_template_string
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+import requests
+import os
+from dotenv import load_dotenv
+import schedule
+import time
+import threading
 
-from flask import Flask, request, render_template_string, redirect, url_for
-import requests,os
+# Load environment variables
+load_dotenv()
 
+# Initialize Flask app
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your_secret_key')
+db = SQLAlchemy(app)
 
-# Define the default URLs for GET and POST forwarding
-URL = "https://rnubo-103-230-107-22.a.free.pinggy.link"
+# Initialize Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
 
-# Home route to show HTML form
-@app.route('/', methods=['GET'])
-def home():
-    return render_template_string("""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Proxy Forwarder</title>
-            <!-- Bootstrap CSS -->
-            <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-        </head>
-        <body>
-            <div class="container mt-5">
-                <h1 class="text-center">Proxy Forwarder</h1>
-                <form action="/set-url" method="POST" class="mt-4">
-                    <div class="form-group">
-                        <label for="code">Enter Code:</label>
-                        <input type="text" class="form-control" name="code" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="url">Enter New URL:</label>
-                        <input type="text" class="form-control" name="url" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-block">Submit</button>
-                </form>
-            </div>
+# Facebook Page Access Token
+PAGE_ACCESS_TOKEN = os.getenv('PAGE_ACCESS_TOKEN')
+VERIFY_TOKEN = os.getenv('VERIFY_TOKEN')
 
-            <!-- Bootstrap JS and Popper.js -->
-            <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-            <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-        </body>
-        </html>
-    """)
+# Database Models
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # 'admin' or 'moderator'
 
-# Route to handle form submission and URL update
-@app.route('/set-url', methods=['POST'])
-def set_url():
-    code = request.form.get('code')
-    new_url = request.form.get('url')
+class Reminder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(80), nullable=False)
+    time = db.Column(db.String(20), nullable=False)
+    text = db.Column(db.String(200), nullable=False)
 
-    # Check the code (you can replace this with your own validation logic)
-    if code == os.getenv("code"):
-        # Example code for validation
-        # Update the forwarding URL based on the form input
-        global URL
-        URL = new_url
-        return f"<div class='container mt-5'><h2 class='text-success'>URL updated successfully! Now forwarding to: {new_url}</h2></div>"
+# Create the database
+with app.app_context():
+    db.create_all()
+
+# Flask-Login user loader
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Webhook verification
+@app.route('/webhook', methods=['GET'])
+def verify_webhook():
+    hub_mode = request.args.get('hub.mode')
+    hub_token = request.args.get('hub.verify_token')
+    hub_challenge = request.args.get('hub.challenge')
+
+    if hub_mode == 'subscribe' and hub_token == VERIFY_TOKEN:
+        return hub_challenge, 200
+    return 'Verification failed', 403
+
+# Handle incoming messages
+@app.route('/webhook', methods=['POST'])
+def handle_webhook():
+    data = request.json
+    if data['object'] == 'page':
+        for entry in data['entry']:
+            for event in entry['messaging']:
+                if 'message' in event:
+                    handle_message(event)
+    return jsonify({'status': 'ok'}), 200
+
+# Function to handle messages
+def handle_message(event):
+    sender_id = event['sender']['id']
+    message = event['message']
+
+    if 'text' in message:
+        text = message['text']
+        if text.startswith('/remind'):
+            set_reminder(sender_id, text)
+        elif text.startswith('/add_moderator'):
+            if is_admin(sender_id):
+                add_moderator_via_bot(text)
+            else:
+                send_message(sender_id, 'Unauthorized')
+        elif text.startswith('/reminders'):
+            if is_moderator(sender_id):
+                show_reminders(sender_id)
+            else:
+                send_message(sender_id, 'Unauthorized')
+        else:
+            send_message(sender_id, f'You said: {text}')
+    elif 'attachments' in message:
+        for attachment in message['attachments']:
+            if attachment['type'] == 'file':
+                file_url = attachment['payload']['url']
+                send_message(sender_id, f'Download link: {file_url}')
+
+# Function to send messages
+def send_message(sender_id, message):
+    url = f'https://graph.facebook.com/v12.0/me/messages?access_token={PAGE_ACCESS_TOKEN}'
+    payload = {
+        'recipient': {'id': sender_id},
+        'message': {'text': message}
+    }
+    requests.post(url, json=payload)
+
+# Function to set a reminder
+def set_reminder(sender_id, text):
+    try:
+        _, time_str, reminder_text = text.split(' ', 2)
+        new_reminder = Reminder(user_id=sender_id, time=time_str, text=reminder_text)
+        db.session.add(new_reminder)
+        db.session.commit()
+        schedule.every().day.at(time_str).do(send_message, sender_id=sender_id, message=f'Reminder: {reminder_text}')
+        send_message(sender_id, f'Reminder set for {time_str}: {reminder_text}')
+    except Exception as e:
+        send_message(sender_id, 'Invalid reminder format. Use: /remind HH:MM Your reminder text')
+
+# Function to check if user is admin
+def is_admin(sender_id):
+    user = User.query.filter_by(username=sender_id).first()
+    return user and user.role == 'admin'
+
+# Function to check if user is moderator
+def is_moderator(sender_id):
+    user = User.query.filter_by(username=sender_id).first()
+    return user and user.role in ['admin', 'moderator']
+
+# Function to add moderator via bot
+def add_moderator_via_bot(text):
+    try:
+        _, username, password = text.split(' ', 2)
+        new_moderator = User(username=username, password=password, role='moderator')
+        db.session.add(new_moderator)
+        db.session.commit()
+        send_message(username, 'You have been added as a moderator')
+    except Exception as e:
+        send_message(username, 'Failed to add moderator')
+
+# Function to show reminders
+def show_reminders(sender_id):
+    reminders = Reminder.query.filter_by(user_id=sender_id).all()
+    if reminders:
+        reminder_list = '\n'.join([f'{r.time}: {r.text}' for r in reminders])
+        send_message(sender_id, f'Your reminders:\n{reminder_list}')
     else:
-        return "<div class='container mt-5'><h2 class='text-danger'>Invalid code! Try again.</h2></div>"
+        send_message(sender_id, 'You have no reminders')
 
-# Proxy route for both GET and POST requests
-@app.route('/proxy', methods=['GET', 'POST'])
-def proxy():
-    print("\n\n\n\n\n"+URL)
-    if request.method == 'GET':
-        if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.challenge"):
-            if not request.args.get("hub.verify_token") == "cat":
-                return "Verification token missmatch", 403
-            return request.args['hub.challenge'], 200
+# Run the scheduler in a separate thread
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
 
-        return "Hello world", 200
-    elif request.method == 'POST':
-        # Forward POST request to the defined URL
-        PAGE_ACCESS_TOKEN = 'EAAVFQ6BdqPcBO4VjetTS9iS9BqqgaO4mWqcbhtxb4DDOT1zBZAu90Jsx7vcZC1BmtVKK5RqTKcxXo03JJZCZB7nZBy3cSe0jZBVNZBf6YXCw5IODhl3KAlLKq5UX1ouN49ZCqNby9xk6CoZBEShG7SqcZA5XNePeU5w32rlUSh2FZAnK4tZAf8NLwjdSG3kKwgAuPTjtpA1VWQLx3ahavIRTujs3o2G7ASgZD'
+# Admin routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        user = User.query.filter_by(username=username, password=password).first()
+        if user:
+            login_user(user)
+            return redirect('/admin')
+        return 'Invalid credentials'
+    return '''
+        <form method="post">
+            Username: <input type="text" name="username"><br>
+            Password: <input type="password" name="password"><br>
+            <input type="submit" value="Login">
+        </form>
+    '''
 
-        # This is API key for facebook messenger.
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return 'Logged out'
 
-        API = "https://graph.facebook.com/v18.0/me/messages?access_token="+PAGE_ACCESS_TOKEN
-        data = request.get_json()
-        print(data)
-        try:
-            # Read messages from facebook messanger.
-            message = data['entry'][0]['messaging'][0]['message']
-            sender_id = data['entry'][0]['messaging'][0]['sender']['id']
-            # Here we get message text and check specific text so we can send response specificaly.
-            request_body = {
-                "recipient": {
-                    "id": sender_id
-                },
-                "message": {
-                    "text": message
-                }
-            }
-            response = requests.post(API, json=request_body).json()
-            return response
-        except:
-            pass
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    if current_user.role == 'admin':
+        return '''
+            <h1>Admin Dashboard</h1>
+            <a href="/add_moderator">Add Moderator</a><br>
+            <a href="/reminders">View Reminders</a><br>
+            <a href="/logout">Logout</a>
+        '''
+    elif current_user.role == 'moderator':
+        return '''
+            <h1>Moderator Dashboard</h1>
+            <a href="/reminders">View Reminders</a><br>
+            <a href="/logout">Logout</a>
+        '''
+    return 'Unauthorized'
 
+@app.route('/add_moderator', methods=['GET', 'POST'])
+@login_required
+def add_moderator():
+    if current_user.role != 'admin':
+        return 'Unauthorized'
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        new_moderator = User(username=username, password=password, role='moderator')
+        db.session.add(new_moderator)
+        db.session.commit()
+        return 'Moderator added'
+    return '''
+        <form method="post">
+            Username: <input type="text" name="username"><br>
+            Password: <input type="password" name="password"><br>
+            <input type="submit" value="Add Moderator">
+        </form>
+    '''
+
+@app.route('/reminders')
+@login_required
+def reminders():
+    reminders = Reminder.query.all()
+    return render_template_string('''
+        <h1>Reminders</h1>
+        <ul>
+            {% for reminder in reminders %}
+                <li>{{ reminder.time }}: {{ reminder.text }}</li>
+            {% endfor %}
+        </ul>
+        <a href="/admin">Back to Dashboard</a>
+    ''', reminders=reminders)
+
+# Start the scheduler thread
+scheduler_thread = threading.Thread(target=run_scheduler)
+scheduler_thread.start()
+
+# Run the Flask app
 if __name__ == '__main__':
-    print(9)
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)), debug=True)
-    
+    app.run(port=5000)
