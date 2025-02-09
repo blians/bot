@@ -41,7 +41,11 @@ class Reminder(db.Model):
 # Create the database
 with app.app_context():
     db.create_all()
-
+    # Create an admin user if it doesn't exist
+    if not User.query.filter_by(username='admin').first():
+        admin_user = User(username='admin', password='amijanina', role='admin')
+        db.session.add(admin_user)
+        db.session.commit()
 # Flask-Login user loader
 @login_manager.user_loader
 def load_user(user_id):
