@@ -107,11 +107,12 @@ def handle_message(event):
 
 # Function to send messages
 def send_message(sender_id, message):
-    url = f'https://graph.facebook.com/v12.0/me/messages?access_token={PAGE_ACCESS_TOKEN}'
+    url = f'https://graph.facebook.com/v18.0/me/messages?access_token={PAGE_ACCESS_TOKEN}'
     payload = {
         'recipient': {'id': sender_id},
         'message': {'text': message}
     }
+    print(PAGE_ACCESS_TOKEN)
     requests.post(url, json=payload)
 
 # Function to set a reminder
