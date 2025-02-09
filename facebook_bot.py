@@ -114,9 +114,9 @@ def handle_message(event):
                 send_message(sender_id, f'You said: {text}')
         elif 'attachments' in message:
             for attachment in message['attachments']:
-                if attachment['type'] == 'file':
-                    file_url = attachment['payload']['url']
-                    send_message(sender_id, f'Download link: {file_url}')
+                #if attachment['type'] == 'file':
+                file_url = attachment['payload']['url']
+                send_message(sender_id, f'Download link: {file_url}')
     except Exception as e:
         logger.error(f"Error in handle_message: {e}", exc_info=True)
 
