@@ -47,6 +47,11 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Root route to avoid 404 errors
+@app.route('/')
+def home():
+    return 'Welcome to the Facebook Bot Admin Tool!'
+
 # Webhook verification
 @app.route('/webhook', methods=['GET'])
 def verify_webhook():
@@ -147,12 +152,6 @@ def show_reminders(sender_id):
     else:
         send_message(sender_id, 'You have no reminders')
 
-# Run the scheduler in a separate thread
-def run_scheduler():
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
-
 # Admin routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -230,10 +229,18 @@ def reminders():
         <a href="/admin">Back to Dashboard</a>
     ''', reminders=reminders)
 
-# Start the scheduler thread
-scheduler_thread = threading.Thread(target=run_scheduler)
-scheduler_thread.start()
+# Run the scheduler in a separate thread
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+# Start the scheduler thread only once
+if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    scheduler_thread = threading.Thread(target=run_scheduler)
+    scheduler_thread.daemon = True
+    scheduler_thread.start()
 
 # Run the Flask app
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(host='0.0.0.0', port=5000)
